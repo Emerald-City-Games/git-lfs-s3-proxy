@@ -59,13 +59,18 @@ async function fetch(req, env) {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
   }
 
-  // in practice, we'd rather not break out-of-spec clients not setting these
-  /*if (!req.headers.get("Accept").startsWith(MIME)
-    || !req.headers.get("Content-Type").startsWith(MIME)) {
-    return new Response(null, { status: 406 });
-  }*/
+  let { user, pass } = parseAuthorization(req);
 
-  const { user, pass } = parseAuthorization(req);
+  // If STUDIO_PASSCODE is set in Cloudflare Pages, verify it and swap in encrypted R2 keys
+  if (env.STUDIO_PASSCODE) {
+    if (pass === env.STUDIO_PASSCODE) {
+      user = env.R2_ACCESS_KEY_ID;
+      pass = env.R2_SECRET_ACCESS_KEY;
+    } else {
+      return new Response(null, { status: 401 });
+    }
+  }
+
   let s3Options = { accessKeyId: user, secretAccessKey: pass };
 
   const segments = url.pathname.split("/").slice(1, -2);
